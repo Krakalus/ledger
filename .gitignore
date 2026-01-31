@@ -1,0 +1,80 @@
+# Python-specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments & dependency management
+.venv/
+venv/
+ENV/
+env/
+.env
+env.bak/
+venv.bak/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.coverage.*
+*.cover
+*.coverage.*
+
+# IDE / editor files
+.idea/
+.vscode/
+*.sublime-*
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project-specific build / dist artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+ledger.egg-info/
+
+# Logs, temp files, crash dumps
+*.log
+*.tmp
+*.bak
+crash-*.txt
+
+# Keys, secrets, credentials (VERY IMPORTANT!)
+*.pem
+*.key
+*.priv
+*.secret
+*.password
+id_ed25519*
+*.gpg
+*.asc
+.env.local
+.env.development
+.env.test
+
+# Jupyter / notebooks (if you experiment)
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# macOS junk
+.AppleDouble
+.LSOverride
+._*
+
+# Windows junk
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Codespaces / GitHub-specific
+.codespaces/
+.github/codespaces/
+

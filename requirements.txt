@@ -1,0 +1,5 @@
+cryptography>=46.0
+jcs>=0.2
+uuid-v7>=0.3
+pytest>=8.0
+pytest-cov>=5.0
