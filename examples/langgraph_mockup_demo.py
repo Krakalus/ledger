@@ -2,115 +2,24 @@
 # Run with: poetry run python examples/langgraph_mockup_demo.py
 #
 # Requires: pip install langchain-core langgraph langchain-openai
-# Set OPENAI_API_KEY environment variable for real LLM calls
+# Set OPENAI_API_KEY for real LLM calls (dummy mode works without it)
 
-from ledger import ConversationSession, AgentKeyPair, LogVerifier
-from datetime import datetime, timezone
-from dataclasses import replace
-from typing import Dict, List
-
+from ledger.integration.langgraph import LedgerAuditorLangGraph, ROLE_MAP
+from ledger.crypto.keys import AgentKeyPair
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.tools import tool
+from dataclasses import replace
 
-
-def utc_now():
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds") + "Z"
-
-
-# =============================================================================
-# LedgerAuditor: The proposed integration
-# =============================================================================
-
-ROLE_MAP = {
-    "human": "user",
-    "ai": "assistant",
-    "tool": "tool",
-    "system": "system",
-}
-
-
-class _LedgerCallbackHandler(BaseCallbackHandler):
-    """Callback handler that captures LangGraph messages to a Ledger chain."""
-
-    def __init__(self, auditor: "LedgerAuditor"):
-        self.auditor = auditor
-        self._seen = set()
-
-    def on_chat_model_start(self, serialized, messages, **kwargs):
-        for msg_list in messages:
-            for msg in msg_list:
-                self._log_message(msg)
-
-    def on_chat_model_end(self, response, **kwargs):
-        for gen in response.generations:
-            for g in gen:
-                if hasattr(g, 'message'):
-                    self._log_message(g.message)
-
-    def on_tool_end(self, output, **kwargs):
-        self.auditor.log(str(output), "tool", "tool")
-
-    def _log_message(self, msg):
-        key = (msg.type, msg.content)
-        if key in self._seen:
-            return
-        self._seen.add(key)
-
-        role = ROLE_MAP.get(msg.type, "user")
-        if role in self.auditor.key_registry:
-            self.auditor.log(msg.content, role, role)
-
-
-class LedgerAuditor:
-    """Seamless LangGraph integration for Ledger audit trails."""
-
-    def __init__(self, session_id: str, key_registry: Dict[str, AgentKeyPair]):
-        self.session = ConversationSession(session_id)
-        self.key_registry = key_registry
-        self._callback = _LedgerCallbackHandler(self)
-
-    @property
-    def callback(self) -> BaseCallbackHandler:
-        return self._callback
-
-    def log(self, content: str, role: str, agent_name: str, timestamp: str | None = None):
-        if agent_name not in self.key_registry:
-            raise ValueError(f"Unknown agent: {agent_name}")
-        keypair = self.key_registry[agent_name]
-        self.session.append(
-            content=content,
-            role=role,
-            signer=keypair,
-            agent_id=f"agent:{agent_name}",
-            timestamp=timestamp or utc_now()
-        )
-
-    def export_chain(self) -> List:
-        return self.session.get_chain()
-
-    def create_verifier(self) -> LogVerifier:
-        trusted_keys = {
-            f"agent:{name}": kp.public_key_b64url()
-            for name, kp in self.key_registry.items()
-        }
-        return LogVerifier(trusted_keys=trusted_keys)
-
-
-# =============================================================================
-# DEMO: Using LedgerAuditor with a real LangGraph ReAct agent
-# =============================================================================
 
 if __name__ == "__main__":
-    from langgraph.prebuilt import create_react_agent
-    from langchain_openai import ChatOpenAI
-    from langchain_core.tools import tool
-
     print("=" * 70)
     print("LEDGER + LANGGRAPH INTEGRATION DEMO")
     print("=" * 70)
     print()
 
-    # Step 1: Generate keypairs for each role
+    # Step 1: Generate keypairs
     user_keypair = AgentKeyPair.generate()
     assistant_keypair = AgentKeyPair.generate()
     tool_keypair = AgentKeyPair.generate()
@@ -118,8 +27,8 @@ if __name__ == "__main__":
     print("1. Generated keypairs for user, assistant, and tool")
     print()
 
-    # Step 2: Create the auditor
-    auditor = LedgerAuditor(
+    # Step 2: Create auditor from integration
+    auditor = LedgerAuditorLangGraph(
         session_id="conv-001",
         key_registry={
             "user": user_keypair,
@@ -145,7 +54,7 @@ if __name__ == "__main__":
     print("3. Defined tools: get_weather, get_time")
     print()
 
-    # Step 4: Create the LangGraph agent
+    # Step 4: Create LangGraph agent
     llm = ChatOpenAI(model="gpt-4o-mini")
     agent = create_react_agent(llm, [get_weather, get_time])
 
@@ -162,13 +71,13 @@ if __name__ == "__main__":
     )
 
     for msg in result["messages"]:
-        role = ROLE_MAP.get(msg.type, msg.type)
+        role = ROLE_MAP.get(msg.type, msg.type)  
         content = msg.content[:60] + "..." if len(msg.content) > 60 else msg.content
         print(f"   [{role:9}] {content}")
 
     print()
 
-    # Step 6: Export the signed chain
+    # Step 6: Export chain
     print("6. Exported signed audit chain:")
     print("-" * 50)
 
