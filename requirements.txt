@@ -9,3 +9,5 @@ langgraph>=1.0.7
 langchain-openai>=1.1.7
 openai==2.16.0
 diskcache==5.6.3
+typer>=0.12
+rich>=13.0

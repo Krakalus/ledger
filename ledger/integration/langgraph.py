@@ -1,8 +1,9 @@
 # ledger/integration/langgraph.py
-
-from typing import Any, Dict
+from typing import Any, Dict, List
 from langchain_core.callbacks import BaseCallbackHandler
-from ledger import ConversationSession, AgentKeyPair, LogVerifier
+from ledger.chain.session import ConversationSession
+from ledger.crypto.keys import AgentKeyPair
+from ledger.verify.verifier import LogVerifier
 from datetime import datetime, timezone
 
 
@@ -19,22 +20,23 @@ ROLE_MAP = {
 
 
 class _LedgerCallbackHandler(BaseCallbackHandler):
-    """LangGraph callback that captures messages to Ledger chain."""
+    """LangGraph callback that logs messages to Ledger."""
 
     def __init__(self, auditor: "LedgerAuditorLangGraph"):
         self.auditor = auditor
         self._seen = set()
 
-    def on_chat_model_start(self, serialized: dict, messages: list, **kwargs):
+    def on_chat_model_start(self, serialized: Dict, messages: List[Any], **kwargs):
         for msg_list in messages:
             for msg in msg_list:
                 self._log_message(msg)
 
     def on_chat_model_end(self, response: Any, **kwargs):
-        for gen in response.generations:
-            for g in gen:
-                if hasattr(g, 'message'):
-                    self._log_message(g.message)
+        if hasattr(response, "generations") and response.generations:
+            for gen in response.generations:
+                for g in gen:
+                    if hasattr(g, "message"):
+                        self._log_message(g.message)
 
     def on_tool_end(self, output: Any, **kwargs):
         self.auditor.log(str(output), "tool", "tool")
@@ -46,6 +48,7 @@ class _LedgerCallbackHandler(BaseCallbackHandler):
         self._seen.add(key)
 
         role = ROLE_MAP.get(msg.type, "user")
+        agent_name = role  # fallback
         if role in self.auditor.key_registry:
             self.auditor.log(msg.content, role, role)
 
@@ -53,8 +56,13 @@ class _LedgerCallbackHandler(BaseCallbackHandler):
 class LedgerAuditorLangGraph:
     """LangGraph integration with callback support."""
 
-    def __init__(self, session_id: str, key_registry: Dict[str, AgentKeyPair]):
-        self.session = ConversationSession(session_id)
+    def __init__(
+        self,
+        session_id: str,
+        key_registry: Dict[str, AgentKeyPair],
+        storage_uri: str = "sqlite://blackbox-logs.db"
+    ):
+        self.session = ConversationSession(session_id, storage=storage_uri)
         self.key_registry = key_registry
         self._callback = _LedgerCallbackHandler(self)
 
@@ -73,6 +81,9 @@ class LedgerAuditorLangGraph:
             agent_id=f"agent:{agent_name}",
             timestamp=timestamp or utc_now()
         )
+
+    def close(self):
+        self.session.close()
 
     def export_chain(self) -> list:
         return self.session.get_chain()

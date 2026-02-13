@@ -1,2 +1,2 @@
-from .autogen import LedgerAuditor   # ← export the base class (not AutoGen variant)
+from .autogen import LedgerAuditor
 from .langgraph import LedgerAuditorLangGraph

@@ -15,10 +15,12 @@ Built to provide **last-mile attestation** for AI governance, regulatory complia
 - Per-message Ed25519 signatures with domain separation
 - Deterministic JSON canonicalization (RFC 8785 via `jcs`)
 - Linear hash chaining (`prev_hash`)
+- Persistent SQLite storage (WAL + autocommit for crash-safety)
 - Fully offline verification using trusted public keys
 - Framework integrations: AutoGen (manual logging), LangGraph (callback handler)
 - Real LLM demos (GPT-4o-mini) with dummy fallback (no API key needed)
-- 20+ passing tests covering core, crypto, chain, and verification layers
+- CLI commands: `sessions`, `messages`, `verify`, `export` (JSONL dump)
+- 40+ passing tests covering core, crypto, chain, storage, CLI, and integrations
 
 ### Installation
 
@@ -30,7 +32,11 @@ poetry install --with dev
 
 # Or classic pip (editable mode)
 pip install -e .
+
+# Full install (agents, demos, testing)
+pip install -r requirements.txt
 ```
+
 
 ### Quickstart (Pure Ledger – No Framework)
 
@@ -79,7 +85,24 @@ result = verifier.verify(tampered)
 print(result)          # → Verification FAILED ... Signature verification failed
 print(result.is_valid) # → False
 ```
+### CLI Usage
 
+```bash
+# List all sessions
+attested-logs sessions --db logs.db
+
+# Show messages in a session
+attested-logs messages conversation-001 --db logs.db --limit 10
+
+# Verify chain integrity
+attested-logs verify conversation-001 --db logs.db
+
+# Export session as JSONL (one signed message per line)
+attested-logs export conversation-001 --db logs.db --output audit.jsonl
+
+All commands respect --db flag or LEDGER_DB_PATH env var.
+Default DB location: ~/.ledger/blackbox-logs.db
+```
 ### Running Framework Demos (AutoGen & LangGraph)
 
 Both demos support **real LLM mode** (GPT-4o-mini).
@@ -115,14 +138,15 @@ ledger/
 │   ├── crypto/               # keys & signing
 │   ├── chain/                # sessions & chaining
 │   ├── verify/               # offline verifier
-│   └── integration/          # framework wrappers (AutoGen, LangGraph)
+│   ├── storage/              # SQLite backend
+│   ├── integration/          # AutoGen + LangGraph hooks
+│   └── cli/                  # CLI commands (main.py)
 ├── examples/                 # runnable demos
 │   ├── autogen_demo.py
 │   ├── langgraph_mockup_demo.py
 │   └── verify_tamper_demo.py
-├── tests/                    # pytest suite (20+ tests)
-├── pyproject.toml            # Poetry config
-├── poetry.lock
+├── tests/                    # pytest suite (40+ tests)
+├── pyproject.toml
 ├── requirements.txt          # pip fallback
 └── README.md
 ```
@@ -131,9 +155,20 @@ ledger/
 
 ```bash
 poetry shell          # enter venv
-pytest -v             # run tests
+pytest -v             # run all tests
 pytest --cov=ledger   # coverage report
+poetry run attested-logs --help  # test CLI
 ```
+
+### Summary of changes
+
+- Features → added CLI export
+- Installation → added pip fallback + minimal/full note
+- New Dependencies Overview section
+- Quickstart → showed plain-path storage
+- New CLI Usage section
+- Project Structure → added `cli/`
+- Development → added CLI test command
 
 ### License
 
@@ -141,7 +176,6 @@ MIT – free to use, modify, distribute.
 
 ### Next Steps
 
-- JSON persistence & file export
 - Merkle tree checkpoints for large logs
 - Blockchain timestamp anchoring
 - NLIP/ECMA-430 full augmentation
